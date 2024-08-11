@@ -55,7 +55,7 @@ int entry(int argc, char **argv) {
 		Matrix4 xform = m4_scalar(1.0);
 		xform         = m4_translate(xform, v3(player_pos.x, player_pos.y, 0));
 		xform         = m4_translate(xform, v3(size.x * -0.5, 0.0, 0));
-		draw_image_xform(player, xform, size, COLOR_RED);
+		draw_image_xform(player, xform, size, COLOR_WHITE);
 		
 		gfx_update();
 		seconds_counter += delta_t;
