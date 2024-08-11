@@ -1,3 +1,82 @@
+typedef struct Sprite {
+	Gfx_Image* image;
+	Vector2 size;
+} Sprite;
+
+typedef enum SpriteID {
+	SPRITE_nil,
+	SPRITE_player,
+	SPRITE_tree0,
+	SPRITE_tree1,
+	SPRITE_rock0,
+	SPRITE_MAX,
+} SpriteID;
+// perhaps convert to X macro? 
+Sprite sprites[SPRITE_MAX];
+
+Sprite* get_sprite(SpriteID id) {
+	if (id >= 0 && id < SPRITE_MAX) {
+		return &sprites[id];
+	}
+
+	return &sprites[0];
+}
+typedef enum EntityArchetype {
+	arch_nil = 0,
+	arch_rock = 1,
+	arch_tree = 2,
+	arch_player = 3,
+} EntityArchetype;
+
+typedef struct Entity {
+	bool is_valid;
+	EntityArchetype arch;
+	Vector2 pos;
+
+	bool render_sprite;
+	SpriteID sprite_id;
+} Entity;
+
+#define MAX_ENTITY_COUNT 1024
+
+typedef struct World {
+	Entity entities[MAX_ENTITY_COUNT];
+} World;
+World* world = 0;
+
+Entity* entity_create() {
+	Entity* entity_found = 0;
+	for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
+		Entity* existing_entity = &world->entities[i];
+		if (!existing_entity->is_valid) {
+			entity_found = existing_entity;
+			break;
+		}
+	}
+	assert(entity_found, "No more free entities!");
+	entity_found->is_valid = true;
+	return entity_found;
+}
+
+void entity_destroy(Entity* entity) {
+	memset(entity, 0, sizeof(Entity));
+}
+
+void setup_player(Entity* en) {
+	en->arch = arch_player;
+	en->sprite_id = SPRITE_player;
+}
+
+void setup_rock(Entity* en) {
+	en->arch = arch_rock;
+	en->sprite_id = SPRITE_rock0;
+}
+
+void setup_tree(Entity* en) {
+	en->arch = arch_tree;
+	en->sprite_id = SPRITE_tree0;
+	// en->sprite_id = SPRITE_tree1;
+}
 
 int entry(int argc, char **argv) {
 	
@@ -7,12 +86,30 @@ int entry(int argc, char **argv) {
 	window.x = 200;
 	window.y = 200;
 	window.clear_color = hex_to_rgba(0x2a2d3aff);
+
+	world = alloc(get_heap_allocator(), sizeof(World));
+	memset(world, 0, sizeof(World));
+
+	sprites[SPRITE_player] = (Sprite){ .image=load_image_from_disk(STR("sprites/player.png"), get_heap_allocator()), .size=v2(6.0, 8.0) };
+	sprites[SPRITE_tree0] = (Sprite){ .image=load_image_from_disk(STR("sprites/tree0.png"), get_heap_allocator()), .size=v2(7.0, 12.0) };
+	sprites[SPRITE_tree1] = (Sprite){ .image=load_image_from_disk(STR("sprites/tree1.png"), get_heap_allocator()), .size=v2(7.0, 12.0) };
+	sprites[SPRITE_rock0] = (Sprite){ .image=load_image_from_disk(STR("sprites/rock0.png"), get_heap_allocator()), .size=v2(7.0, 4.0) };
+
+	Entity* player_en = entity_create();
+	setup_player(player_en);
 	
-	Gfx_Image* player = load_image_from_disk(STR("../sprites/player.png"), get_heap_allocator());
-	assert(player, "fuckie wucky happen");
+	for (int i = 0; i < 10; i++) {
+		Entity* en = entity_create();
+		setup_rock(en);
+		en->pos = v2(get_random_float32_in_range(-100, 100), get_random_float32_in_range(-100, 100));
+	}
 
+	for (int i = 0; i < 10; i++) {
+		Entity* en = entity_create();
+		setup_tree(en);
+		en->pos = v2(get_random_float32_in_range(-100, 100), get_random_float32_in_range(-100, 100));
+	}
 
-	Vector2 player_pos = v2(0, 0);
 	float64 seconds_counter = 0.0;
 	s32 frame_count = 0;
 
@@ -29,6 +126,25 @@ int entry(int argc, char **argv) {
 		last_time = now;
 		
 		os_update();
+
+		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
+			Entity* en = &world->entities[i];
+			if (en->is_valid) {
+				switch (en->arch)
+				{
+				default:
+				{
+					Sprite* sprite = get_sprite(en->sprite_id);
+
+					Matrix4 xform = m4_scalar(1.0);
+					xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+					xform         = m4_translate(xform, v3(sprite->size.x * -0.5, 0.0, 0));
+					draw_image_xform(sprite->image, xform, sprite->size, COLOR_WHITE);
+					break;
+				}
+				}
+			}
+		}
 
 		if (is_key_just_pressed(KEY_ESCAPE)) {
 			window.should_close = true;
@@ -49,14 +165,8 @@ int entry(int argc, char **argv) {
 		}
 		input_axis = v2_normalize(input_axis);
 
-		player_pos = v2_add(player_pos, v2_mulf(input_axis, 100.0 * delta_t));
-		
-		Vector2 size = v2(6.0, 8.0);
-		Matrix4 xform = m4_scalar(1.0);
-		xform         = m4_translate(xform, v3(player_pos.x, player_pos.y, 0));
-		xform         = m4_translate(xform, v3(size.x * -0.5, 0.0, 0));
-		draw_image_xform(player, xform, size, COLOR_WHITE);
-		
+		player_en->pos = v2_add(player_en->pos, v2_mulf(input_axis, 100.0 * delta_t));
+
 		gfx_update();
 		seconds_counter += delta_t;
 		frame_count += 1;
